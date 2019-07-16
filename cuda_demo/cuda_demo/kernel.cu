@@ -18,7 +18,7 @@ __global__ void array_2d_grid(int * arr)
 	int offset1 = b_d*(blockIdx.x);
 	int offset2 = b_d*gridDim.x*blockIdx.y;
 	int gid = threadIdx.x + offset1 + offset2;
-	printf("thread_id: %d, block_x: %d, block_y: %d, gid: %d : %d \n",threadIdx.x, blockIdx.x, blockIdx.y, gid, arr[gid]);
+	printf("thread_id: %d, block_x: %d, block_y: %d, gid: %d : %d \n", threadIdx.x, blockIdx.x, blockIdx.y, gid, arr[gid]);
 }
 
 // 2d block && 2d grid index
@@ -31,7 +31,7 @@ __global__ void array_2dblock(int * arr)
 	printf("gid: %d: %d \n", gid, arr[gid]);
 }
 
- // add argument: size 
+// add argument: size 
 __global__ void array_2dblock2(int * arr, int size)
 {
 	int tid = threadIdx.y*blockDim.x + threadIdx.x;
@@ -56,29 +56,53 @@ __global__ void array_3d(int * arr, int size)
 		printf("gid: %d : %d \n", gid, arr[gid]);
 }
 
-__global__ void sum_array(int * arr, int size)
+// 2d index to sum an array
+__global__ void sum_array(int *a, int * b, int * arr, int size)
 {
-	;
-
+	int gid = threadIdx.x + blockIdx.x*blockDim.x;
+	if (gid < size)
+	{
+		arr[gid] = a[gid] + b[gid];
+		printf("gid: %d, a: %d, b: %d, a+b=%d\n", gid, a[gid], b[gid], arr[gid]);
+	}
 }
 int main()
 {
-	int * arr;
-	arr = (int*)malloc(sizeof(int) * 64);
+	int * arr1;
+	int * arr2;
+	int * arr3;
+	arr1 = (int*)malloc(sizeof(int) * 64);
+	arr2 = (int*)malloc(sizeof(int) * 64);
+	arr3 = (int*)malloc(sizeof(int) * 64);
 	for (int i = 0; i < 64; i++)
-		arr[i] = (int)(rand() & 0xff);
+	{
+		arr1[i] = (int)(rand() & 0xff);
+		arr2[i] = (int)(rand() & 0xff);
+	}
 	int arr_size = 64;
 	int arr_byte_size = sizeof(int) * arr_size;
 	// device memory
-	int *d_arr;
-	cudaMalloc((void**)&d_arr, arr_byte_size);
+	int *d_arr1;
+	cudaMalloc((void**)&d_arr1, arr_byte_size);
+	int *d_arr2;
+	cudaMalloc((void**)&d_arr2, arr_byte_size);
+	int *d_arr3;
+	cudaMalloc((void**)&d_arr3, arr_byte_size);
 	// copy the data from host to device
-	cudaMemcpy(d_arr, arr, arr_byte_size, cudaMemcpyHostToDevice);
-	dim3 grid(2,2,2);
-	dim3 block(2,2,2);
-	array_3d << <grid, block >> > (d_arr, 64);
+	cudaMemcpy(d_arr1, arr1, arr_byte_size, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_arr2, arr2, arr_byte_size, cudaMemcpyHostToDevice);
+	dim3 grid(16);
+	dim3 block(4);
+	sum_array << <grid, block >> > (d_arr1, d_arr2, d_arr3, 64);
+	cudaMemcpy(arr3, d_arr3, arr_byte_size, cudaMemcpyDeviceToHost);
+	for (int i = 0; i<64; i++)
+	{
+		printf("result%d: %d\n", i, arr3[i]);
+	}
 	cudaDeviceSynchronize();
-	cudaFree(d_arr);
+	cudaFree(d_arr1);
+	cudaFree(d_arr2);
+	cudaFree(d_arr3);
 	cudaDeviceReset();
 	return 0;
 }
